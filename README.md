@@ -84,7 +84,8 @@ Build: `pip install -r requirements.txt`
 
 Env API: `DEEPSEEK_API_KEY`, `DEEPSEEK_MODEL`, `DEEPSEEK_BASE_URL`, `GOOGLE_SHEET_ID`.  
 Env UI: `API_BASE_URL=https://fabrica-vidrios-api.onrender.com`  
-Env Bot: mismos de API + `TELEGRAM_BOT_TOKEN` (+ `TELEGRAM_ALLOWED_CHAT_IDS` si aplica).
+Env Bot: `TELEGRAM_BOT_TOKEN`, `API_BASE_URL=https://fabrica-vidrios-api.onrender.com` (+ `TELEGRAM_ALLOWED_CHAT_IDS` si aplica).  
+El bot y la UI usan la misma API para Excel y PDFs.
 
 Health: `GET /health` en API y bot.  
 Nota: free duerme tras inactividad; el disco es efímero. Si el bot duerme, abrí su `/health` para despertarlo antes de escribirle en Telegram.

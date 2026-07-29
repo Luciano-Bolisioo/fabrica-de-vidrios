@@ -3,6 +3,7 @@
 Uso:
   python -m app.telegram_bot
 
+Habla con la API (API_BASE_URL): misma planilla y mismos PDFs que la UI.
 Por defecto enruta solo (modo auto). /asistencias y /documentos fijan el modo;
 /auto vuelve al enrutado automático.
 """
@@ -14,8 +15,9 @@ import logging
 import os
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import Literal
+from typing import Any, Literal
 
+import httpx
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -25,17 +27,18 @@ from telegram.ext import (
     filters,
 )
 
-from app.agents.attendance_agent import run_attendance_chat
-from app.agents.documents_agent import run_documents_chat
 from app.agents.router import classify_intent
 from app.config import get_settings
-from app.services import okf_ingest
 
 logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     level=logging.INFO,
 )
 logger = logging.getLogger("telegram_bot")
+
+_WAKE_TIMEOUT = 90.0
+_CHAT_TIMEOUT = 180.0
+_UPLOAD_TIMEOUT = 180.0
 
 
 class _HealthHandler(BaseHTTPRequestHandler):
@@ -64,6 +67,52 @@ def _start_health_server() -> None:
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     logger.info("Health HTTP en 0.0.0.0:%s (/ y /health)", port)
+
+
+def _api_base() -> str:
+    return get_settings().api_base_url.rstrip("/")
+
+
+def _wake_api() -> None:
+    url = f"{_api_base()}/health"
+    with httpx.Client(timeout=_WAKE_TIMEOUT) as client:
+        resp = client.get(url)
+        resp.raise_for_status()
+
+
+def _api_chat(path: str, message: str, thread_id: str) -> str:
+    _wake_api()
+    url = f"{_api_base()}{path}"
+    with httpx.Client(timeout=_CHAT_TIMEOUT) as client:
+        resp = client.post(url, json={"message": message, "thread_id": thread_id})
+        if resp.status_code >= 400:
+            detail = resp.text
+            try:
+                detail = resp.json().get("detail", detail)
+            except Exception:  # noqa: BLE001
+                pass
+            raise RuntimeError(str(detail))
+        data = resp.json()
+    return str(data.get("reply") or "No pude armar una respuesta.")
+
+
+def _api_upload_pdf(filename: str, data: bytes) -> dict[str, Any]:
+    _wake_api()
+    url = f"{_api_base()}/api/documents/upload"
+    with httpx.Client(timeout=_UPLOAD_TIMEOUT) as client:
+        resp = client.post(
+            url,
+            files={"file": (filename, data, "application/pdf")},
+        )
+        if resp.status_code >= 400:
+            detail = resp.text
+            try:
+                detail = resp.json().get("detail", detail)
+            except Exception:  # noqa: BLE001
+                pass
+            raise RuntimeError(str(detail))
+        return resp.json()
+
 
 AgentMode = Literal["asistencias", "documentos"]
 ChatMode = Literal["auto", "asistencias", "documentos"]
@@ -167,7 +216,6 @@ async def cmd_limpiar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if await _deny_if_needed(update):
         return
     chat_id = update.effective_chat.id  # type: ignore[union-attr]
-    # Limpiar ambos hilos del chat
     for agent_mode in ("asistencias", "documentos"):
         key = (chat_id, agent_mode)  # type: ignore[assignment]
         _thread_rev[key] = _thread_rev.get(key, 0) + 1  # type: ignore[arg-type]
@@ -191,11 +239,19 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     try:
         agent_mode = await asyncio.to_thread(_resolve_agent_mode, chat_id, text)
         thread_id = _thread_id(chat_id, agent_mode)
-        logger.info("chat=%s mode=%s agent=%s", chat_id, _chat_mode(chat_id), agent_mode)
-        if agent_mode == "documentos":
-            reply = await asyncio.to_thread(run_documents_chat, text, thread_id)
-        else:
-            reply = await asyncio.to_thread(run_attendance_chat, text, thread_id)
+        logger.info(
+            "chat=%s mode=%s agent=%s api=%s",
+            chat_id,
+            _chat_mode(chat_id),
+            agent_mode,
+            _api_base(),
+        )
+        path = (
+            "/api/documents/chat"
+            if agent_mode == "documentos"
+            else "/api/attendance/chat"
+        )
+        reply = await asyncio.to_thread(_api_chat, path, text, thread_id)
     except Exception as exc:  # noqa: BLE001
         logger.exception("Error en chat Telegram")
         reply = f"Ocurrió un problema al procesar su consulta: {exc}"
@@ -222,7 +278,7 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     try:
         tg_file = await context.bot.get_file(doc.file_id)
         data = bytes(await tg_file.download_as_bytearray())
-        result = await asyncio.to_thread(okf_ingest.ingest_pdf, data, filename)
+        result = await asyncio.to_thread(_api_upload_pdf, filename, data)
         await message.reply_text(
             result.get("message")
             or f"Archivo cargado: {result.get('title', filename)}. Ya puede preguntarme sobre él."
@@ -241,6 +297,7 @@ def main() -> None:
             "Créelo con @BotFather y péguelo ahí."
         )
 
+    logger.info("API_BASE_URL=%s", settings.api_base_url)
     application = Application.builder().token(token).build()
     application.add_handler(CommandHandler("start", cmd_start))
     application.add_handler(CommandHandler("auto", cmd_auto))
@@ -251,7 +308,7 @@ def main() -> None:
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
     _start_health_server()
-    logger.info("Bot de Telegram iniciado (polling, modo auto).")
+    logger.info("Bot de Telegram iniciado (polling, modo auto, vía API).")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
