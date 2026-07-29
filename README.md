@@ -78,14 +78,16 @@ Repo: https://github.com/Luciano-Bolisioo/fabrica-de-vidrios
 |---|---|---|
 | API | https://fabrica-vidrios-api.onrender.com | `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
 | UI | https://fabrica-vidrios-ui.onrender.com | `streamlit run ui/streamlit_app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true` |
+| Bot | https://fabrica-vidrios-bot.onrender.com | `python -m app.telegram_bot` |
 
-Build (ambos): `pip install -r requirements.txt`
+Build: `pip install -r requirements.txt`
 
 Env API: `DEEPSEEK_API_KEY`, `DEEPSEEK_MODEL`, `DEEPSEEK_BASE_URL`, `GOOGLE_SHEET_ID`.  
-Env UI: `API_BASE_URL=https://fabrica-vidrios-api.onrender.com`
+Env UI: `API_BASE_URL=https://fabrica-vidrios-api.onrender.com`  
+Env Bot: mismos de API + `TELEGRAM_BOT_TOKEN` (+ `TELEGRAM_ALLOWED_CHAT_IDS` si aplica).
 
-Health: `GET /health` en la API.  
-Nota: free duerme tras inactividad; el disco es efímero (PDFs se pierden al redeploy).
+Health: `GET /health` en API y bot.  
+Nota: free duerme tras inactividad; el disco es efímero. Si el bot duerme, abrí su `/health` para despertarlo antes de escribirle en Telegram.
 
 ## Notas
 

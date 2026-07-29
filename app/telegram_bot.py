@@ -11,6 +11,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Literal
 
 from telegram import Update
@@ -33,6 +36,34 @@ logging.basicConfig(
     level=logging.INFO,
 )
 logger = logging.getLogger("telegram_bot")
+
+
+class _HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self) -> None:  # noqa: N802
+        if self.path in ("/", "/health"):
+            body = b'{"status":"ok"}'
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        else:
+            self.send_error(404)
+
+    def log_message(self, format: str, *args: object) -> None:  # noqa: A003
+        return
+
+
+def _start_health_server() -> None:
+    """Render web services must bind $PORT; polling alone does not."""
+    raw = (os.environ.get("PORT") or "").strip()
+    if not raw:
+        return
+    port = int(raw)
+    server = HTTPServer(("0.0.0.0", port), _HealthHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    logger.info("Health HTTP en 0.0.0.0:%s (/ y /health)", port)
 
 AgentMode = Literal["asistencias", "documentos"]
 ChatMode = Literal["auto", "asistencias", "documentos"]
@@ -219,6 +250,7 @@ def main() -> None:
     application.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
+    _start_health_server()
     logger.info("Bot de Telegram iniciado (polling, modo auto).")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
