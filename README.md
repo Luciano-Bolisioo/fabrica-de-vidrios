@@ -72,15 +72,17 @@ Si al arrancar falla la lectura, en Google Sheets: **Compartir → Cualquiera co
 
 ## Deploy en Render
 
-Dos web services (plan free) en el mismo workspace, sin tocar otros proyectos:
+Repo: https://github.com/Luciano-Bolisioo/fabrica-de-vidrios
 
-| Servicio | Runtime | Build | Start |
-|---|---|---|---|
-| `fabrica-vidrios-api` | Python | `pip install -r requirements.txt` | `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
-| `fabrica-vidrios-ui` | Python | `pip install -r requirements.txt` | `streamlit run ui/streamlit_app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true` |
+| Servicio | URL | Start |
+|---|---|---|
+| API | https://fabrica-vidrios-api.onrender.com | `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
+| UI | https://fabrica-vidrios-ui.onrender.com | `streamlit run ui/streamlit_app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true` |
+
+Build (ambos): `pip install -r requirements.txt`
 
 Env API: `DEEPSEEK_API_KEY`, `DEEPSEEK_MODEL`, `DEEPSEEK_BASE_URL`, `GOOGLE_SHEET_ID`.  
-Env UI: `API_BASE_URL` = URL pública de la API (sin `/` final).
+Env UI: `API_BASE_URL=https://fabrica-vidrios-api.onrender.com`
 
 Health: `GET /health` en la API.  
 Nota: free duerme tras inactividad; el disco es efímero (PDFs se pierden al redeploy).
