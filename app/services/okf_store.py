@@ -113,6 +113,50 @@ def list_documents() -> list[dict[str, Any]]:
     return docs
 
 
+def delete_document(doc_id: str) -> dict[str, Any]:
+    """Borra el markdown OKF y el PDF fuente si existe. Devuelve meta o error."""
+    settings = get_settings()
+    q = (doc_id or "").strip()
+    if not q:
+        return {"error": "Falta el id del documento."}
+
+    target: Path | None = None
+    meta: dict[str, Any] = {}
+    for path in settings.okf_documents_dir.glob("*.md"):
+        parsed, _ = _parse_frontmatter(path.read_text(encoding="utf-8"))
+        stem_id = str(parsed.get("id") or path.stem)
+        if stem_id == q or path.stem == q:
+            target = path
+            meta = parsed
+            break
+
+    if target is None:
+        return {"error": f"No encontré el documento '{q}'."}
+
+    source_name = str(meta.get("source") or "").strip()
+    title = str(meta.get("title") or target.stem)
+    resolved_id = str(meta.get("id") or target.stem)
+
+    target.unlink(missing_ok=True)
+
+    if source_name:
+        upload = settings.uploads_dir / Path(source_name).name
+        if upload.is_file():
+            upload.unlink(missing_ok=True)
+
+    # Quitar referencias related en otros docs
+    for path in settings.okf_documents_dir.glob("*.md"):
+        other_meta, body = _parse_frontmatter(path.read_text(encoding="utf-8"))
+        related = list(other_meta.get("related") or [])
+        if resolved_id not in related:
+            continue
+        other_meta["related"] = [r for r in related if r != resolved_id]
+        _write_doc(path, other_meta, body)
+
+    rebuild_index()
+    return {"id": resolved_id, "title": title, "deleted": True}
+
+
 def read_document(doc_id_or_title: str) -> dict[str, Any]:
     settings = get_settings()
     q = (doc_id_or_title or "").strip().lower()

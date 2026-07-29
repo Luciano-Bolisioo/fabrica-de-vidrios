@@ -110,6 +110,20 @@ def api_get(path: str, timeout: float = 30.0) -> dict | list:
         return resp.json()
 
 
+def api_delete(path: str, timeout: float = 30.0) -> dict:
+    url = f"{API_BASE}{path}"
+    with httpx.Client(timeout=timeout) as client:
+        resp = client.delete(url)
+        if resp.status_code >= 400:
+            detail = resp.text
+            try:
+                detail = resp.json().get("detail", detail)
+            except Exception:  # noqa: BLE001
+                pass
+            raise RuntimeError(str(detail))
+        return resp.json()
+
+
 def ensure_thread(prefix: str, key: str) -> str:
     if key not in st.session_state:
         st.session_state[key] = f"{prefix}-{uuid.uuid4()}"
@@ -274,8 +288,25 @@ else:
         if docs:
             st.markdown("**Documentos cargados:**")
             for doc in docs:
+                doc_id = str(doc.get("id") or "")
                 tags = ", ".join(doc.get("tags") or []) or "—"
-                st.markdown(f"- **{doc.get('title')}** (`{doc.get('id')}`) — {tags}")
+                col_info, col_del = st.columns([5, 1])
+                with col_info:
+                    st.markdown(f"**{doc.get('title')}** (`{doc_id}`) — {tags}")
+                with col_del:
+                    if st.button(
+                        "Eliminar",
+                        key=f"del_doc_{doc_id}",
+                        use_container_width=True,
+                    ):
+                        try:
+                            result = api_delete(f"/api/documents/{doc_id}")
+                            st.session_state["upload_flash"] = result.get(
+                                "message"
+                            ) or f"Eliminé '{doc.get('title')}'."
+                            st.rerun()
+                        except Exception as exc:  # noqa: BLE001
+                            st.error(f"No pude eliminar: {exc}")
         else:
             st.info("Todavía no hay documentos. Tocá **Subir** para arrastrar un PDF.")
     except Exception as exc:  # noqa: BLE001

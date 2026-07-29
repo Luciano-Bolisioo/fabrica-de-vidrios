@@ -90,6 +90,19 @@ def documents_list() -> list[DocumentInfo]:
     return [DocumentInfo(**d) for d in docs]
 
 
+@app.delete("/api/documents/{doc_id}")
+def documents_delete(doc_id: str) -> dict:
+    result = okf_store.delete_document(doc_id)
+    if result.get("error"):
+        raise HTTPException(status_code=404, detail=result["error"])
+    return {
+        "ok": True,
+        "id": result["id"],
+        "title": result["title"],
+        "message": f"Eliminé '{result['title']}'.",
+    }
+
+
 @app.post("/api/documents/chat", response_model=ChatResponse)
 def documents_chat(payload: ChatRequest) -> ChatResponse:
     try:
