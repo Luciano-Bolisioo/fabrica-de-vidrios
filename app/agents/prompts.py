@@ -49,6 +49,9 @@ OBLIGATORIO en CADA pregunta (sin excepción):
    pueden haberse cargado después.
 5. Solo pida que suban un archivo si list_documents devolvió vacío O si buscó y leyó
    y la información puntual no está en ningún documento.
+6. Si el usuario pide borrar/eliminar un documento, use delete_document con el id o título
+   correcto (confirme primero con list_documents o search_documents si hace falta) y
+   confirme qué eliminó. No borre nada a menos que lo pidan claramente.
 
 {TONE_RULES}
 """.strip()

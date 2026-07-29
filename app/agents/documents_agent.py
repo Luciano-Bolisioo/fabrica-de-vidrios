@@ -41,7 +41,24 @@ def list_related(doc_id: str) -> dict[str, Any]:
     return okf_store.list_related(doc_id)
 
 
-TOOLS = [list_documents, read_document, search_documents, list_related]
+@tool
+def delete_document(doc_id_or_title: str) -> dict[str, Any]:
+    """Elimina un documento cargado por id o título (y su PDF fuente si existe)."""
+    found = okf_store.read_document(doc_id_or_title)
+    if found.get("error"):
+        return found
+    result = okf_store.delete_document(str(found["id"]))
+    if result.get("error"):
+        return result
+    return {
+        "ok": True,
+        "id": result["id"],
+        "title": result["title"],
+        "message": f"Eliminé '{result['title']}'.",
+    }
+
+
+TOOLS = [list_documents, read_document, search_documents, list_related, delete_document]
 
 
 def _build_llm() -> ChatOpenAI:
@@ -60,7 +77,7 @@ def _build_llm() -> ChatOpenAI:
 
 @lru_cache
 def get_documents_agent():
-    # prompt version: formal-v1
+    # prompt version: formal-v1 + delete tool
     return create_react_agent(
         _build_llm(),
         TOOLS,
