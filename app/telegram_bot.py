@@ -27,7 +27,7 @@ from telegram.ext import (
     filters,
 )
 
-from app.agents.router import classify_intent
+from app.agents.router import classify_intent, is_delete_document_request
 from app.config import get_settings
 
 logging.basicConfig(
@@ -140,6 +140,9 @@ def _thread_id(chat_id: int, agent_mode: AgentMode) -> str:
 
 
 def _resolve_agent_mode(chat_id: int, text: str) -> AgentMode:
+    # Aunque esté en /asistencias, borrar un PDF/archivo va a documentos.
+    if is_delete_document_request(text):
+        return "documentos"
     mode = _chat_mode(chat_id)
     if mode == "auto":
         return classify_intent(text)

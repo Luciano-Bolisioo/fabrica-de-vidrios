@@ -77,7 +77,7 @@ def _build_llm() -> ChatOpenAI:
 
 @lru_cache
 def get_documents_agent():
-    # prompt version: formal-v1 + delete tool
+    # prompt version: formal-v1 + delete tool + delete routing
     return create_react_agent(
         _build_llm(),
         TOOLS,

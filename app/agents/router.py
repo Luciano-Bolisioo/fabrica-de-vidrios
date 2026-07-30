@@ -26,24 +26,46 @@ _ATT_KEYWORDS = re.compile(
 
 _DOC_KEYWORDS = re.compile(
     r"\b("
-    r"cliente|clientes|precio|precios|presupuesto|venta|ventas|pdf|documento|"
-    r"cristaler[ií]a|laminado|templado|dvh|factura|descuento|pago|obra|"
+    r"cliente|clientes|precio|precios|presupuesto|venta|ventas|pdf|documento|documentos|"
+    r"archivo|archivos|cristaler[ií]a|laminado|templado|dvh|factura|descuento|pago|obra|"
     r"belgrano|vidrios?\s+del\s+sur"
     r")\b",
     re.I,
 )
 
+# Borrar/eliminar un PDF o archivo cargado → siempre documentos (no la planilla).
+_DELETE_DOC = re.compile(
+    r"\b(elimin[ae]|borrar?|borr[ae]|quit[ae]|sacar)\b.{0,40}\b("
+    r"archivo|archivos|pdf|documento|documentos|pdfs?"
+    r")\b"
+    r"|"
+    r"\b("
+    r"archivo|archivos|pdf|documento|documentos|pdfs?"
+    r")\b.{0,40}\b(elimin[ae]|borrar?|borr[ae]|quit[ae]|sacar)\b",
+    re.I | re.S,
+)
+
 _CLASSIFY_SYSTEM = """\
 Clasifique la consulta del usuario en UNA sola etiqueta:
 - asistencias: fichadas, horas trabajadas, empleados, sectores, llegadas tarde, planilla de personal
-- documentos: clientes, precios, ventas, presupuestos, archivos PDF, productos de vidrio, condiciones comerciales
+- documentos: clientes, precios, ventas, presupuestos, archivos PDF cargados, productos de vidrio,
+  condiciones comerciales, y también pedir listar/borrar/eliminar/subir un archivo o PDF
+
+Importante: si pide eliminar, borrar o quitar un archivo/PDF/documento → documentos
+(no es modificar la planilla de fichadas).
 
 Responda SOLO con una palabra: asistencias o documentos.
 """
 
 
+def is_delete_document_request(message: str) -> bool:
+    return bool(_DELETE_DOC.search(message or ""))
+
+
 def _heuristic(message: str) -> Intent:
     text = message or ""
+    if is_delete_document_request(text):
+        return "documentos"
     att = bool(_ATT_KEYWORDS.search(text))
     doc = bool(_DOC_KEYWORDS.search(text))
     if att and not doc:
@@ -51,8 +73,7 @@ def _heuristic(message: str) -> Intent:
     if doc and not att:
         return "documentos"
     if att and doc:
-        # Priorizar documentos si habla de cliente/precio concreto
-        if re.search(r"cliente|precio|presupuesto|cristaler", text, re.I):
+        if re.search(r"cliente|precio|presupuesto|cristaler|archivo|pdf|documento", text, re.I):
             return "documentos"
         return "asistencias"
     return "documentos"
@@ -63,6 +84,10 @@ def classify_intent(message: str) -> Intent:
     text = (message or "").strip()
     if not text:
         return "asistencias"
+
+    # Regla dura: borrar archivo/PDF no va a la planilla.
+    if is_delete_document_request(text):
+        return "documentos"
 
     settings = get_settings()
     if not settings.deepseek_api_key:

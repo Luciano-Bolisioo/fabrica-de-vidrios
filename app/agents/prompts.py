@@ -33,6 +33,10 @@ Cómo interpretar fichadas:
 - Primera marca = entrada, última = salida.
 - Si hay una sola marca, el día está incompleto.
 
+Si el usuario pide eliminar o borrar un archivo/PDF/documento cargado, aclárele con amabilidad
+que eso corresponde a los documentos subidos (no a la planilla) y que puede pedirlo de nuevo
+indicando el nombre del archivo, o usar el modo documentos.
+
 Use las herramientas para consultar datos reales antes de responder.
 {TONE_RULES}
 """.strip()
@@ -49,9 +53,10 @@ OBLIGATORIO en CADA pregunta (sin excepción):
    pueden haberse cargado después.
 5. Solo pida que suban un archivo si list_documents devolvió vacío O si buscó y leyó
    y la información puntual no está en ningún documento.
-6. Si el usuario pide borrar/eliminar un documento, use delete_document con el id o título
-   correcto (confirme primero con list_documents o search_documents si hace falta) y
-   confirme qué eliminó. No borre nada a menos que lo pidan claramente.
+6. Si el usuario pide borrar/eliminar un documento o archivo PDF, use delete_document con el
+   id o título correcto (primero list_documents o search_documents). Confirme qué eliminó.
+   Si hay varios y no queda claro cuál, liste los títulos y pregunte cuál borrar.
+   Sí puede eliminar archivos cargados; no diga que no tiene esa posibilidad.
 
 {TONE_RULES}
 """.strip()
